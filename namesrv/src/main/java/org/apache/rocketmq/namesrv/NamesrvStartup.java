@@ -16,12 +16,6 @@
  */
 package org.apache.rocketmq.namesrv;
 
-import java.io.BufferedInputStream;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.Properties;
-import java.util.concurrent.Callable;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.Option;
@@ -33,12 +27,19 @@ import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.common.namesrv.NamesrvConfig;
 import org.apache.rocketmq.controller.ControllerManager;
 import org.apache.rocketmq.logging.org.slf4j.Logger;
+import org.apache.rocketmq.logging.org.slf4j.LoggerFactory;
 import org.apache.rocketmq.remoting.netty.NettyClientConfig;
 import org.apache.rocketmq.remoting.netty.NettyServerConfig;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
-import org.apache.rocketmq.logging.org.slf4j.LoggerFactory;
 import org.apache.rocketmq.srvutil.ServerUtil;
 import org.apache.rocketmq.srvutil.ShutdownHookThread;
+
+import java.io.BufferedInputStream;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.Properties;
+import java.util.concurrent.Callable;
 
 public class NamesrvStartup {
 
@@ -70,6 +71,7 @@ public class NamesrvStartup {
 
     public static ControllerManager controllerManagerMain() {
         try {
+            // ControllerManager 负责协调和管理整个系统的各个部分，包括资源分配、任务调度、数据复制等等
             if (namesrvConfig.isEnableControllerInNamesrv()) {
                 return createAndStartControllerManager();
             }
@@ -149,6 +151,7 @@ public class NamesrvStartup {
 
         final NamesrvController controller = new NamesrvController(namesrvConfig, nettyServerConfig, nettyClientConfig);
         // remember all configs to prevent discard
+        // 把所有文件中的配置文件放到 coniguration 中
         controller.getConfiguration().registerConfig(properties);
         return controller;
     }
@@ -165,6 +168,8 @@ public class NamesrvStartup {
             System.exit(-3);
         }
 
+        // 添加钩子函数释放资源
+        // 停机的方式就是注册一个JVM钩子函数，在JVM进程关闭之前，先将线程池关闭，及时释放资源
         Runtime.getRuntime().addShutdownHook(new ShutdownHookThread(log, (Callable<Void>) () -> {
             controller.shutdown();
             return null;

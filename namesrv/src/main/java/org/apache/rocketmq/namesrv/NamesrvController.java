@@ -16,15 +16,6 @@
  */
 package org.apache.rocketmq.namesrv;
 
-import java.util.Collections;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.RunnableFuture;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.apache.rocketmq.common.ThreadFactoryImpl;
 import org.apache.rocketmq.common.constant.LoggerName;
@@ -44,14 +35,12 @@ import org.apache.rocketmq.remoting.Configuration;
 import org.apache.rocketmq.remoting.RemotingClient;
 import org.apache.rocketmq.remoting.RemotingServer;
 import org.apache.rocketmq.remoting.common.TlsMode;
-import org.apache.rocketmq.remoting.netty.NettyClientConfig;
-import org.apache.rocketmq.remoting.netty.NettyRemotingClient;
-import org.apache.rocketmq.remoting.netty.NettyRemotingServer;
-import org.apache.rocketmq.remoting.netty.NettyServerConfig;
-import org.apache.rocketmq.remoting.netty.RequestTask;
-import org.apache.rocketmq.remoting.netty.TlsSystemConfig;
+import org.apache.rocketmq.remoting.netty.*;
 import org.apache.rocketmq.remoting.protocol.RequestCode;
 import org.apache.rocketmq.srvutil.FileWatchService;
+
+import java.util.Collections;
+import java.util.concurrent.*;
 
 public class NamesrvController {
     private static final Logger LOGGER = LoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
@@ -101,6 +90,7 @@ public class NamesrvController {
     }
 
     public boolean initialize() {
+        // 从文件中加载配置
         loadConfig();
         initiateNetworkComponents();
         initiateThreadExecutors();
@@ -116,12 +106,15 @@ public class NamesrvController {
     }
 
     private void startScheduleService() {
+        // NameServer每隔10s扫描一次Broker，移除处于未激活状态的Broker。
         this.scanExecutorService.scheduleAtFixedRate(NamesrvController.this.routeInfoManager::scanNotActiveBroker,
             5, this.namesrvConfig.getScanNotActiveBrokerInterval(), TimeUnit.MILLISECONDS);
 
+        // NameServer每隔10min打印一次KV配置
         this.scheduledExecutorService.scheduleAtFixedRate(NamesrvController.this.kvConfigManager::printAllPeriodically,
             1, 10, TimeUnit.MINUTES);
 
+        // NameServer每隔10s打印一次什么东西
         this.scheduledExecutorService.scheduleAtFixedRate(() -> {
             try {
                 NamesrvController.this.printWaterMark();
@@ -234,18 +227,35 @@ public class NamesrvController {
         this.remotingServer.start();
 
         // In test scenarios where it is up to OS to pick up an available port, set the listening port back to config
+        // q: 为什么要这么做呢？
+        // a: 这是为了测试环境下，OS自动分配端口的情况，如果OS分配了一个端口，那么就把这个端口设置回去
+        //    为什么要这么做呢？因为在测试环境下，如果OS分配了一个端口，那么就会导致其他的测试用例无法使用这个端口，从而导致测试失败
+        // q: this.remotingServer.localListenPort() 是谁赋值的
+        // a: 在 NettyRemotingServer#start 方法中
         if (0 == nettyServerConfig.getListenPort()) {
             nettyServerConfig.setListenPort(this.remotingServer.localListenPort());
         }
 
+        // q: NetworkUtil.getLocalAddress() 是什么？
+        // a: 是获取本机的IP地址
         this.remotingClient.updateNameServerAddressList(Collections.singletonList(NetworkUtil.getLocalAddress()
             + ":" + nettyServerConfig.getListenPort()));
+        // q: 这里为什么要启动 remotingClient 呢？
+        // a: 因为在 NameServerController#registerProcessor 方法中，注册了一个请求处理器，这个请求处理器是 ClientRequestProcessor
+        //    ClientRequestProcessor 是一个继承了 AbstractRemotingProcessor 抽象类的类，所以它一定是一个请求处理器，而这个请求处理器是
+        //    用来处理来自 Broker 的请求的，所以在 NameServer 启动的时候，需要启动 remotingClient
         this.remotingClient.start();
 
+        // q: 这里为什么要启动 fileWatchService 呢？
+        // a: 因为在 NameServerController#initiateSslContext 方法中，如果启用了 SSL，那么就会启动一个 FileWatchService
+        // q: FileWatchService 是什么？
+        // a: 是一个文件监听服务，它会监听指定的文件，如果文件发生了变化，那么就会触发监听器的 onChanged 方法
         if (this.fileWatchService != null) {
             this.fileWatchService.start();
         }
 
+        // q: 这里为什么要启动 routeInfoManager 呢？
+        // a: 因为 routeInfoManager 是一个定时任务，它会定时的从 Broker 上拉取 Topic 的路由信息，然后缓存到本地
         this.routeInfoManager.start();
     }
 

@@ -441,6 +441,8 @@ public abstract class NettyRemotingAbstract {
      * </p>
      */
     public void scanResponseTable() {
+        // q: 下面的逻辑在干嘛
+        // a: 遍历responseTable，如果超时了，就从responseTable中移除，并且执行回调
         final List<ResponseFuture> rfList = new LinkedList<>();
         Iterator<Entry<Integer, ResponseFuture>> it = this.responseTable.entrySet().iterator();
         while (it.hasNext()) {

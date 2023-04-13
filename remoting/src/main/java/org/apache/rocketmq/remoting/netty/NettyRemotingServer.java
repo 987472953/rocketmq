@@ -19,17 +19,7 @@ package org.apache.rocketmq.remoting.netty;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelDuplexHandler;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelHandler;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.ChannelPipeline;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.channel.WriteBufferWaterMark;
+import io.netty.channel.*;
 import io.netty.channel.epoll.Epoll;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollServerSocketChannel;
@@ -43,18 +33,6 @@ import io.netty.util.HashedWheelTimer;
 import io.netty.util.Timeout;
 import io.netty.util.TimerTask;
 import io.netty.util.concurrent.DefaultEventExecutorGroup;
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.security.cert.CertificateException;
-import java.util.NoSuchElementException;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import org.apache.rocketmq.common.Pair;
 import org.apache.rocketmq.common.ThreadFactoryImpl;
 import org.apache.rocketmq.common.constant.LoggerName;
@@ -70,6 +48,12 @@ import org.apache.rocketmq.remoting.exception.RemotingSendRequestException;
 import org.apache.rocketmq.remoting.exception.RemotingTimeoutException;
 import org.apache.rocketmq.remoting.exception.RemotingTooMuchRequestException;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.security.cert.CertificateException;
+import java.util.NoSuchElementException;
+import java.util.concurrent.*;
 
 @SuppressWarnings("NullableProblems")
 public class NettyRemotingServer extends NettyRemotingAbstract implements RemotingServer {
@@ -177,6 +161,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
             && Epoll.isAvailable();
     }
 
+
     @Override
     public void start() {
         this.defaultEventExecutorGroup = new DefaultEventExecutorGroup(nettyServerConfig.getServerWorkerThreads(),
@@ -184,6 +169,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
 
         prepareSharableHandlers();
 
+        // netty 启动参数配置
         serverBootstrap.group(this.eventLoopGroupBoss, this.eventLoopGroupSelector)
             .channel(useEpoll() ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
             .option(ChannelOption.SO_BACKLOG, 1024)
@@ -204,6 +190,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         try {
             ChannelFuture sync = serverBootstrap.bind().sync();
             InetSocketAddress addr = (InetSocketAddress) sync.channel().localAddress();
+            // 如果没有设置监听端口，则使用绑定的端口
             if (0 == nettyServerConfig.getListenPort()) {
                 this.nettyServerConfig.setListenPort(addr.getPort());
             }
@@ -219,6 +206,8 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
             this.nettyEventExecutor.start();
         }
 
+        // q: 为什么要启动定时任务
+        // a: 定时任务主要是用来清理超时的请求
         TimerTask timerScanResponseTable = new TimerTask() {
             @Override
             public void run(Timeout timeout) {
@@ -233,6 +222,8 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         };
         this.timer.newTimeout(timerScanResponseTable, 1000 * 3, TimeUnit.MILLISECONDS);
 
+        // q: 为什么要启动定时任务
+        // a: 定时任务主要是用来打印一些统计信息
         scheduledExecutorService.scheduleWithFixedDelay(() -> {
             try {
                 NettyRemotingServer.this.printRemotingCodeDistribution();
@@ -395,7 +386,16 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
     }
 
     private void printRemotingCodeDistribution() {
+        // q: 为什么要打印这个日志？
+        // a: 分布式系统中，不同的请求码的请求量可能不一样，比如：心跳请求、业务请求、管理请求等等。如果某个请求码的请求量过大，可能会导致系统性能问题。
+        //    通过打印这个日志，我们可以对这些请求码的请求量进行监控，从而发现问题。
+
+        // q: 为什么要打印两次日志？
+        // a: 一次是打印请求码的分布，一次是打印响应码的分布。
         if (distributionHandler != null) {
+            // q: getInBoundSnapshotString这个方法是干嘛的
+            // a: 它会返回一个字符串，这个字符串是请求码的分布情况，比如：{1: 100, 2: 200, 3: 300}
+            //    其中，1、2、3是请求码，100、200、300是请求码对应的请求量。
             String inBoundSnapshotString = distributionHandler.getInBoundSnapshotString();
             if (inBoundSnapshotString != null) {
                 TRAFFIC_LOGGER.info("Port: {}, RequestCode Distribution: {}",
