@@ -223,22 +223,34 @@ public class RouteInfoManager {
         final TopicConfigSerializeWrapper topicConfigWrapper,
         final List<String> filterServerList,
         final Channel channel) {
+        // q: 解释下上面的参数
+        // a: clusterName: 集群名
+        // a: brokerAddr: broker地址
+        // a: brokerName: broker名
+        // a: brokerId: brokerId
+        // a: haServerAddr: haServer地址
+        // a: zoneName: broker所在的zone
+        // a: timeoutMillis: 超时时间
+        // a: enableActingMaster: 是否允许主从切换
+        // a: topicConfigWrapper: topic配置
+        // a: filterServerList: 过滤服务器列表
+        // a: channel: channel
         RegisterBrokerResult result = new RegisterBrokerResult();
         try {
             /**
              * 路由注册需要加写锁，防止并发修改RouteInfoManager中的路由表。
-             * 首先判断Broker所属集群是否存在，如果不存在，则创建集群，
-             * 然后将broker名加入集群Broker集合
              */
             this.lock.writeLock().lockInterruptibly();
 
             //init or update the cluster info
             // 初始化或更新集群信息
+            // 首先判断Broker所属集群是否存在，如果不存在，则创建集群(创建HashSet)，
             Set<String> brokerNames = ConcurrentHashMapUtils.computeIfAbsent((ConcurrentHashMap<String, Set<String>>) this.clusterAddrTable, clusterName, k -> new HashSet<>());
             brokerNames.add(brokerName);
 
             boolean registerFirst = false;
 
+            // 然后将broker名加入集群Broker集合
             // 创建Broker信息
             BrokerData brokerData = this.brokerAddrTable.get(brokerName);
             if (null == brokerData) {
@@ -250,6 +262,8 @@ public class RouteInfoManager {
             // 更新Broker信息, 新版才设置EnableActingMaster
             boolean isOldVersionBroker = enableActingMaster == null;
             brokerData.setEnableActingMaster(!isOldVersionBroker && enableActingMaster);
+            // q: zoneName 是什么
+            // a: zoneName 是Broker所在的机房名称
             brokerData.setZoneName(zoneName);
 
             Map<Long, String> brokerAddrsMap = brokerData.getBrokerAddrs();
@@ -267,9 +281,13 @@ public class RouteInfoManager {
 
             //Switch slave to master: first remove <1, IP:PORT> in namesrv, then add <0, IP:PORT>
             //The same IP:PORT must only have one record in brokerAddrTable
+            // 相同的brokerAddr 不同的 brokerId 删除旧的broker信息(主从切换)
             brokerAddrsMap.entrySet().removeIf(item -> null != brokerAddr && brokerAddr.equals(item.getValue()) && brokerId != item.getKey());
 
             //If Local brokerId stateVersion bigger than the registering one,
+            // q: 什么情况下会出现这种情况
+            // a: brokerId相同，但是stateVersion不同，说明brokerId相同的broker已经注册成功，但是数据没有更新成功
+            // a: 这种情况下，优先保留旧broker，将新注册的broker删除
             String oldBrokerAddr = brokerAddrsMap.get(brokerId);
             if (null != oldBrokerAddr && !oldBrokerAddr.equals(brokerAddr)) {
                 BrokerLiveInfo oldBrokerInfo = brokerLiveTable.get(new BrokerAddrInfo(clusterName, oldBrokerAddr));
@@ -288,6 +306,7 @@ public class RouteInfoManager {
                 }
             }
 
+            // brokerAddrsMap中没有这个ID, 并且topicConfigWrapper中只有一个topic
             if (!brokerAddrsMap.containsKey(brokerId) && topicConfigWrapper.getTopicConfigTable().size() == 1) {
                 log.warn("Can't register topicConfigWrapper={} because broker[{}]={} has not registered.",
                     topicConfigWrapper.getTopicConfigTable(), brokerId, brokerAddr);

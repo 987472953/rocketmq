@@ -17,12 +17,13 @@
 
 package org.apache.rocketmq.remoting.protocol.route;
 
+import org.apache.commons.lang3.StringUtils;
+import org.apache.rocketmq.common.MixAll;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Random;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.rocketmq.common.MixAll;
 
 /**
  * The class describes that a typical broker cluster's (in replication) details: the cluster (in sharding) name
@@ -36,6 +37,10 @@ public class BrokerData implements Comparable<BrokerData> {
      * The container that store the all single instances for the current broker replication cluster.
      * The key is the brokerId, and the value is the address of the single broker instance.
      */
+    // q: brokerId是什么？
+    // a: brokerId是broker的唯一标识，每个broker都有一个唯一的brokerId，brokerId是一个整数，从0开始，每个brokerId都是唯一的。
+    // q: brokerId是如何生成的？
+    // a: brokerId是在broker启动时，从配置文件中读取的，如果配置文件中没有配置brokerId，则brokerId会自动生成一个唯一的brokerId。
     private HashMap<Long, String> brokerAddrs;
     private String zoneName;
     private final Random random = new Random();
