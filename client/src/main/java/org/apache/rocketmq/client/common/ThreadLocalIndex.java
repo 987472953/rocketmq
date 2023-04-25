@@ -30,6 +30,9 @@ public class ThreadLocalIndex {
             index = random.nextInt();
         }
         this.threadLocalIndex.set(++index);
+        // q: & 0x7FFFFFFF 为什么要这样做？
+        // a: 因为 index 可能为负数，如果不做处理，会导致 Math.abs(index) 为负数，从而导致消息发送失败
+        // 冷知识 Math.abs(Integer.MIN_VALUE) < 0
         return Math.abs(index & POSITIVE_MASK);
     }
 

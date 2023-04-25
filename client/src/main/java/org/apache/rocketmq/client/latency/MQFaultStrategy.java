@@ -59,16 +59,26 @@ public class MQFaultStrategy {
     public MessageQueue selectOneMessageQueue(final TopicPublishInfo tpInfo, final String lastBrokerName) {
         if (this.sendLatencyFaultEnable) {
             try {
+                // 正常情况下每次自加1
                 int index = tpInfo.getSendWhichQueue().incrementAndGet();
+                // 遍历所有的队列
                 for (int i = 0; i < tpInfo.getMessageQueueList().size(); i++) {
+                    // 对队列数取模，这样就能实现轮询
                     int pos = index++ % tpInfo.getMessageQueueList().size();
                     MessageQueue mq = tpInfo.getMessageQueueList().get(pos);
+                    // q: 为什么要判断lastBrokerName
+                    // a: 因为lastBrokerName是上一次发送消息的brokerName，如果不判断，那么就会出现一直发送到同一个broker的情况
+                    // q: 为什么要判断latencyFaultTolerance.isAvailable(mq.getBrokerName())
+                    // a: 因为latencyFaultTolerance.isAvailable(mq.getBrokerName())是判断当前broker是否可用
                     if (!StringUtils.equals(lastBrokerName, mq.getBrokerName()) && latencyFaultTolerance.isAvailable(mq.getBrokerName())) {
                         return mq;
                     }
                 }
 
+                // 注意: 第一次发送消息的时候，lastBrokerName是null，所以如果有可用Broker不会走到这里
+                // 所有的broker都不可用，那么就从latencyFaultTolerance中获取一个broker
                 final String notBestBroker = latencyFaultTolerance.pickOneAtLeast();
+                // 这个 brokerName 写队列数
                 int writeQueueNums = tpInfo.getWriteQueueIdByBroker(notBestBroker);
                 if (writeQueueNums > 0) {
                     final MessageQueue mq = tpInfo.selectOneMessageQueue();

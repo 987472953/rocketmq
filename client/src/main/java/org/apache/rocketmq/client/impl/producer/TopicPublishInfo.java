@@ -16,18 +16,37 @@
  */
 package org.apache.rocketmq.client.impl.producer;
 
-import java.util.ArrayList;
-import java.util.List;
 import org.apache.rocketmq.client.common.ThreadLocalIndex;
 import org.apache.rocketmq.common.message.MessageQueue;
 import org.apache.rocketmq.remoting.protocol.route.QueueData;
 import org.apache.rocketmq.remoting.protocol.route.TopicRouteData;
 
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * 主题消息发布的相关信息，包括主题名称、主题的消息队列列表、消息队列的路由信息等
+ */
 public class TopicPublishInfo {
+    /**
+     * 是否是顺序消息主题
+     */
     private boolean orderTopic = false;
+    /**
+     * 是否已经有了主题路由信息
+     */
     private boolean haveTopicRouterInfo = false;
+    /**
+     * 主题的消息队列列表
+     */
     private List<MessageQueue> messageQueueList = new ArrayList<>();
+    /**
+     * 根据消息的 Key 值，选择发送到哪个消息队列的算法实现
+     */
     private volatile ThreadLocalIndex sendWhichQueue = new ThreadLocalIndex();
+    /**
+     * 路由信息
+     */
     private TopicRouteData topicRouteData;
 
     public boolean isOrderTopic() {

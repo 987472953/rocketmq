@@ -94,6 +94,7 @@ public class NamesrvController {
         loadConfig();
         initiateNetworkComponents();
         initiateThreadExecutors();
+        // 注册netty的处理器
         registerProcessor();
         startScheduleService();
         initiateSslContext();

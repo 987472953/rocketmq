@@ -16,13 +16,6 @@
  */
 package org.apache.rocketmq.client.producer;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.ExecutorService;
 import org.apache.rocketmq.client.ClientConfig;
 import org.apache.rocketmq.client.QueryResult;
 import org.apache.rocketmq.client.Validators;
@@ -35,17 +28,17 @@ import org.apache.rocketmq.client.trace.TraceDispatcher;
 import org.apache.rocketmq.client.trace.hook.EndTransactionTraceHookImpl;
 import org.apache.rocketmq.client.trace.hook.SendMessageTraceHookImpl;
 import org.apache.rocketmq.common.MixAll;
-import org.apache.rocketmq.common.message.Message;
-import org.apache.rocketmq.common.message.MessageBatch;
-import org.apache.rocketmq.common.message.MessageClientIDSetter;
-import org.apache.rocketmq.common.message.MessageExt;
-import org.apache.rocketmq.common.message.MessageQueue;
+import org.apache.rocketmq.common.message.*;
 import org.apache.rocketmq.common.topic.TopicValidator;
+import org.apache.rocketmq.logging.org.slf4j.Logger;
+import org.apache.rocketmq.logging.org.slf4j.LoggerFactory;
 import org.apache.rocketmq.remoting.RPCHook;
 import org.apache.rocketmq.remoting.exception.RemotingException;
 import org.apache.rocketmq.remoting.protocol.ResponseCode;
-import org.apache.rocketmq.logging.org.slf4j.Logger;
-import org.apache.rocketmq.logging.org.slf4j.LoggerFactory;
+
+import java.util.*;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.ExecutorService;
 
 /**
  * This class is the entry point for applications intending to send messages. </p>
@@ -768,6 +761,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * This method will be removed in a certain version after April 5, 2020, so please do not use this method.
+     * 现在只需要在生产者端发送一条消息到该主题，RocketMQ 将自动创建该主题
      *
      * @param key accessKey
      * @param newTopic topic name
@@ -784,6 +778,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     /**
      * Create a topic on broker. This method will be removed in a certain version after April 5, 2020, so please do not
      * use this method.
+     * 现在只需要在生产者端发送一条消息到该主题，RocketMQ 将自动创建该主题
      *
      * @param key accessKey
      * @param newTopic topic name
@@ -792,6 +787,8 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * @param attributes
      * @throws MQClientException if there is any client error.
      */
+    // q: 为什么要弃用这个方法？
+    // a: 因为这个方法是在生产者端创建主题，而不是在 broker 端创建主题，所以这个方法不够灵活，不够通用
     @Deprecated
     @Override
     public void createTopic(String key, String newTopic, int queueNum, int topicSysFlag, Map<String, String> attributes) throws MQClientException {
