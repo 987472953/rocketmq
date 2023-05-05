@@ -292,6 +292,9 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
         this.defaultMQProducerImpl.start();
         if (null != traceDispatcher) {
             try {
+                // 启动消息轨迹异步转发器
+                // 接收生产者发送的消息，并将消息的发送状态记录到消息追踪系统中。这些状态包括消息发送成功或失败、消息存储成功或失败等。
+                // 接收消费者消费消息的状态，并将消费状态记录到消息追踪系统中。这些状态包括消息消费成功或失败、消息消费的时间等。
                 traceDispatcher.start(this.getNamesrvAddr(), this.getAccessChannel());
             } catch (MQClientException e) {
                 logger.warn("trace dispatcher start failed ", e);
