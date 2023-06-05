@@ -1283,7 +1283,7 @@ public class MQClientAPIImpl implements NameServerUpdateCallback {
         final long timeoutMillis
     ) throws RemotingException, InterruptedException {
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.END_TRANSACTION, requestHeader);
-
+        // 本地事务报错信息(如果有)
         request.setRemark(remark);
         this.remotingClient.invokeOneway(addr, request, timeoutMillis);
     }

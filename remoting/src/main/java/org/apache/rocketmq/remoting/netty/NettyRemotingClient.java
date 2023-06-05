@@ -673,7 +673,7 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
                         .connect(hostAndPort[0], Integer.parseInt(hostAndPort[1]));
                     LOGGER.info("createChannel: begin to connect remote host[{}] asynchronously", addr);
                     cw = new ChannelWrapper(channelFuture);
-                    this.channelTables.put(addr, cw);
+                    this.channelTables.put(addr, cw); // 唯一的put
                 }
             } catch (Exception e) {
                 LOGGER.error("createChannel: create channel exception", e);
