@@ -211,6 +211,8 @@ public class PullAPIWrapper {
             }
             int sysFlagInner = sysFlag;
 
+            // q: 为什么slave要清空commitOffset
+            // a: 因为slave不需要commitOffset，只有master需要commitOffset
             if (findBrokerResult.isSlave()) {
                 sysFlagInner = PullSysFlag.clearCommitOffsetFlag(sysFlagInner);
             }
@@ -231,6 +233,7 @@ public class PullAPIWrapper {
             requestHeader.setBname(mq.getBrokerName());
 
             String brokerAddr = findBrokerResult.getBrokerAddr();
+            // 类过滤模式，需要重新计算出master broker的地址
             if (PullSysFlag.hasClassFilterFlag(sysFlagInner)) {
                 brokerAddr = computePullFromWhichFilterServer(mq.getTopic(), brokerAddr);
             }
