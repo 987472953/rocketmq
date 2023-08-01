@@ -737,6 +737,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             try {
                 //for MessageBatch,ID has been set in the generating process
                 if (!(msg instanceof MessageBatch)) {
+                    // 设置msgId
                     MessageClientIDSetter.setUniqID(msg);
                 }
 
