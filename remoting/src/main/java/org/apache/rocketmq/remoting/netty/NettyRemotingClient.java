@@ -477,9 +477,10 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
                 }
             }
 
+            // 完全相同不更新
             if (update) {
                 // q:  Collections.shuffle(addrs); 有什么用
-                // a: 随机打乱addrs集合中元素的顺序，从而实现元素的随机排列
+                // a: 随机打乱addrs集合中元素的顺序
                 // q: 为什么要shuffle
                 // a: 避免不同的consumer使用相同的name server地址列表，造成集群的压力集中在一台机器上
                 Collections.shuffle(addrs);
@@ -487,7 +488,7 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
                 this.namesrvAddrList.set(addrs);
 
                 // should close the channel if choosed addr is not exist.
-                // 如果namesrvAddrChoosed中的地址不在namesrvAddrList中，那么就关闭这个地址对应的channel
+                // 如果新地址不存在当前选择的地址，那么就关闭这个地址对应的channel
                 if (this.namesrvAddrChoosed.get() != null && !addrs.contains(this.namesrvAddrChoosed.get())) {
                     String namesrvAddr = this.namesrvAddrChoosed.get();
                     for (String addr : this.channelTables.keySet()) {

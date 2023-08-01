@@ -60,6 +60,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     private final Logger log = LoggerFactory.getLogger(DefaultMQProducerImpl.class);
     private final Random random = new Random();
+    // 父类 xx取代继承
     private final DefaultMQProducer defaultMQProducer;
     private final ConcurrentMap<String/* topic */, TopicPublishInfo> topicPublishInfoTable =
         new ConcurrentHashMap<>();
@@ -170,17 +171,22 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             case CREATE_JUST:
                 this.serviceState = ServiceState.START_FAILED;
 
+                // defaultMQProducer group不为空 不为默认group
                 this.checkConfig();
 
-                // 改变实例名称
+                // 不是内部group 改变实例名称
                 if (!this.defaultMQProducer.getProducerGroup().equals(MixAll.CLIENT_INNER_PRODUCER_GROUP)) {
                     this.defaultMQProducer.changeInstanceNameToPID();
                 }
 
                 // 创建MQClientInstance实例. 整个JVM实例中只存在一个MQClientManager实例
+                // 为什么要叫这个名字?
+                // client的相关配置信息
+                // client 有 producer consumer admin 等
                 this.mQClientFactory = MQClientManager.getInstance().getOrCreateMQClientInstance(this.defaultMQProducer, rpcHook);
 
                 // 将Producer实例添加到producerTable中
+                // 每创建一个生产者就放到producerTable中
                 boolean registerOK = mQClientFactory.registerProducer(this.defaultMQProducer.getProducerGroup(), this);
                 if (!registerOK) {
                     this.serviceState = ServiceState.CREATE_JUST;
@@ -189,7 +195,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                         null);
                 }
 
+                // 初始化时
                 if (startFactory) {
+                    // 很多东西
                     mQClientFactory.start();
                 }
 
@@ -210,6 +218,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
         this.mQClientFactory.sendHeartbeatToAllBrokerWithLock();
 
+        // 定时任务处理超时请求
         RequestFutureHolder.getInstance().startScheduledTask(this);
 
     }

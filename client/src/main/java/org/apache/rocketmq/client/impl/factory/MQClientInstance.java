@@ -61,11 +61,15 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import static org.apache.rocketmq.remoting.rpc.ClientMetadata.topicRouteData2EndpointsForStaticTopic;
 
+/**
+ * 一个clientId 一个 instance
+ */
 public class MQClientInstance {
     private final static long LOCK_TIMEOUT_MILLIS = 3000;
     private final static Logger log = LoggerFactory.getLogger(MQClientInstance.class);
     private final ClientConfig clientConfig;
     private final String clientId;
+    // 启动时间戳
     private final long bootTimestamp = System.currentTimeMillis();
 
     /**
@@ -113,11 +117,16 @@ public class MQClientInstance {
 
     public MQClientInstance(ClientConfig clientConfig, int instanceIndex, String clientId, RPCHook rpcHook) {
         this.clientConfig = clientConfig;
+        // netty 特殊配置
         this.nettyClientConfig = new NettyClientConfig();
         this.nettyClientConfig.setClientCallbackExecutorThreads(clientConfig.getClientCallbackExecutorThreads());
         this.nettyClientConfig.setUseTLS(clientConfig.isUseTLS());
         this.nettyClientConfig.setSocksProxyConfig(clientConfig.getSocksProxyConfig());
+
+        // 用来处理各种netty的相关的请求
         ClientRemotingProcessor clientRemotingProcessor = new ClientRemotingProcessor(this);
+
+        // 实际通信的类
         this.mQClientAPIImpl = new MQClientAPIImpl(this.nettyClientConfig, clientRemotingProcessor, rpcHook, clientConfig);
 
         if (this.clientConfig.getNamesrvAddr() != null) {
@@ -230,18 +239,19 @@ public class MQClientInstance {
                 case CREATE_JUST:
                     this.serviceState = ServiceState.START_FAILED;
                     // If not specified,looking address from name server
+                    //
                     if (null == this.clientConfig.getNamesrvAddr()) {
                         this.mQClientAPIImpl.fetchNameServerAddr();
                     }
-                    // Start request-response channel (netty)
+                    // 开启client相关的 netty (producer 和 broker 与 name server 通信)
                     this.mQClientAPIImpl.start();
-                    // Start various schedule tasks
+                    // 一堆定时任务
                     this.startScheduledTask();
-                    // Start pull service
+                    // 启动推或拉消息服务(生成者是pop 消费者是pull?)
                     this.pullMessageService.start();
-                    // Start rebalance service
+                    // 应该和消费者相关 生产者没用
                     this.rebalanceService.start();
-                    // Start push service
+                    // 这是MQClientInstance里面的Impl CLIENT_INNER_PRODUCER
                     this.defaultMQProducer.getDefaultMQProducerImpl().start(false);
                     log.info("the client factory [{}] start OK", this.clientId);
                     this.serviceState = ServiceState.RUNNING;
@@ -443,7 +453,9 @@ public class MQClientInstance {
     public void sendHeartbeatToAllBrokerWithLock() {
         if (this.lockHeartbeat.tryLock()) {
             try {
+                // 发送心跳到所有的broker
                 this.sendHeartbeatToAllBroker();
+               // 生产者这儿为空吧
                 this.uploadFilterClassSource();
             } catch (final Exception e) {
                 log.error("sendHeartbeatToAllBroker exception", e);

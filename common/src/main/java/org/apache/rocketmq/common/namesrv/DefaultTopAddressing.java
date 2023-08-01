@@ -94,6 +94,7 @@ public class DefaultTopAddressing implements TopAddressing {
             }
         }
         // Return result of default implementation
+        // http wobsocket 拿到namesrv地址
         return fetchNSAddr(true, 3000);
     }
 

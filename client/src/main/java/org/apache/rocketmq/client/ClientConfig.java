@@ -32,11 +32,25 @@ import org.apache.rocketmq.remoting.protocol.RequestType;
 
 /**
  * Client Common configuration
+ * 各种配置
  */
 public class ClientConfig {
+
+    /**
+     * 是否启用VIP通道 更低的消息发送延迟和更高的吞吐量
+     */
     public static final String SEND_MESSAGE_WITH_VIP_CHANNEL_PROPERTY = "com.rocketmq.sendMessageWithVIPChannel";
+    /**
+     * 代理 nettty
+     */
     public static final String SOCKS_PROXY_CONFIG = "com.rocketmq.socks.proxy.config";
+    /**
+     * 是否加密消息体?
+     */
     public static final String DECODE_READ_BODY = "com.rocketmq.read.body";
+    /**
+     * ?
+     */
     public static final String DECODE_DECOMPRESS_BODY = "com.rocketmq.decompress.body";
     private String namesrvAddr = NameServerAddressUtils.getNameServerAddresses();
     private String clientIP = NetworkUtil.getLocalAddress();
@@ -48,19 +62,29 @@ public class ClientConfig {
 
     /**
      * Pulling topic information interval from the named server
+     * 从命名服务器拉取主题信息间隔
      */
     private int pollNameServerInterval = 1000 * 30;
     /**
      * Heartbeat interval in microseconds with message broker
+     * 与broker的心跳间隔
      */
     private int heartbeatBrokerInterval = 1000 * 30;
     /**
      * Offset persistent interval for consumer
+     * 消费者多久持久化一次偏移量
      */
     private int persistConsumerOffsetInterval = 1000 * 5;
+    /**
+     * 拉消息超时时间
+     */
     private long pullTimeDelayMillsWhenException = 1000;
+    /**
+     * 设置了之后clientId会根据这个值变得更多, 区分不同的客户端?
+     */
     private boolean unitMode = false;
     private String unitName;
+
     private boolean decodeReadBody = Boolean.parseBoolean(System.getProperty(DECODE_READ_BODY, "true"));
     private boolean decodeDecompressBody = Boolean.parseBoolean(System.getProperty(DECODE_DECOMPRESS_BODY, "true"));
     private boolean vipChannelEnabled = Boolean.parseBoolean(System.getProperty(SEND_MESSAGE_WITH_VIP_CHANNEL_PROPERTY, "false"));
