@@ -244,6 +244,7 @@ public class MQClientInstance {
                         this.mQClientAPIImpl.fetchNameServerAddr();
                     }
                     // 开启client相关的 netty (producer 和 broker 与 name server 通信)
+                    // 其中包括将 send 消息后 等待响应的操作 NettyClientHandler
                     this.mQClientAPIImpl.start();
                     // 一堆定时任务
                     this.startScheduledTask();
@@ -583,16 +584,15 @@ public class MQClientInstance {
         }
     }
 
+    //  从 NameServer 获取 Topic 的路由信息，如果是默认 Topic，需要根据默认的队列数进行修正
     public boolean updateTopicRouteInfoFromNameServer(final String topic, boolean isDefault,
         DefaultMQProducer defaultMQProducer) {
-        // q: 这个方法的大体逻辑是什么
-        // a: 从 NameServer 获取 Topic 的路由信息，如果是默认 Topic，需要根据默认的队列数进行修正
         try {
             if (this.lockNamesrv.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
                 try {
                     TopicRouteData topicRouteData;
                     if (isDefault && defaultMQProducer != null) {
-                        // 最终解决逻辑?
+                        // 默认 Topic，将读写队列中的个数设置为默认的队列数
                         topicRouteData = this.mQClientAPIImpl.getDefaultTopicRouteInfoFromNameServer(clientConfig.getMqClientApiTimeout());
                         if (topicRouteData != null) {
                             for (QueueData data : topicRouteData.getQueueDatas()) {
@@ -608,6 +608,7 @@ public class MQClientInstance {
                         TopicRouteData old = this.topicRouteTable.get(topic);
                         boolean changed = topicRouteData.topicRouteDataChanged(old);
                         if (!changed) {
+                            // 路由信息没有变化，查询本地的producerTable 和 consumerTable 看是否需要更新
                             changed = this.isNeedUpdateTopicRouteInfo(topic);
                         } else {
                             log.info("the topic[{}] route info changed, old[{}] ,new[{}]", topic, old, topicRouteData);
@@ -615,13 +616,14 @@ public class MQClientInstance {
 
                         if (changed) {
 
+                            // 更新路由信息
                             for (BrokerData bd : topicRouteData.getBrokerDatas()) {
                                 this.brokerAddrTable.put(bd.getBrokerName(), bd.getBrokerAddrs());
                             }
 
                             // Update endpoint map
                             {
-                                ConcurrentMap<MessageQueue, String> mqEndPoints = topicRouteData2EndpointsForStaticTopic(topic, topicRouteData);
+                                ConcurrentMap<MessageQueue, String/*brokerName*/> mqEndPoints = topicRouteData2EndpointsForStaticTopic(topic, topicRouteData);
                                 if (!mqEndPoints.isEmpty()) {
                                     topicEndPointsTable.put(topic, mqEndPoints);
                                 }
@@ -772,6 +774,7 @@ public class MQClientInstance {
     private boolean isNeedUpdateTopicRouteInfo(final String topic) {
         boolean result = false;
         Iterator<Entry<String, MQProducerInner>> producerIterator = this.producerTable.entrySet().iterator();
+        // 遍历producerTable 如果存在topic对应的TopicPublishInfo并且是OK的，result为true
         while (producerIterator.hasNext() && !result) {
             Entry<String, MQProducerInner> entry = producerIterator.next();
             MQProducerInner impl = entry.getValue();
@@ -784,6 +787,9 @@ public class MQClientInstance {
             return true;
         }
 
+        // 不存在topic对应的TopicPublishInfo或者不是OK的
+        // 遍历消费者，如果存在topic对应的TopicSubscribeInfo并且是OK的，result为true
+        // ??
         Iterator<Entry<String, MQConsumerInner>> consumerIterator = this.consumerTable.entrySet().iterator();
         while (consumerIterator.hasNext() && !result) {
             Entry<String, MQConsumerInner> entry = consumerIterator.next();

@@ -174,7 +174,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 // defaultMQProducer group不为空 不为默认group
                 this.checkConfig();
 
-                // 不是内部group 改变实例名称
+                // 不是内部group时 改变实例名称
+                // instanceName 构建 clientId 时使用, 如果同一台物理机部署多个produce, 相同instanceName, 会导致clientId相同
                 if (!this.defaultMQProducer.getProducerGroup().equals(MixAll.CLIENT_INNER_PRODUCER_GROUP)) {
                     this.defaultMQProducer.changeInstanceNameToPID();
                 }
@@ -582,13 +583,15 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             MessageQueue mq = null;
             Exception exception = null;
             SendResult sendResult = null;
-            // 执行总次数 同步模式下 重试次数(2)+1 异步模式下 1次
+            // 失败重试
+            // 执行总次数 同步模式下 重试次数(2)+1 异步模式下 1 不重试
             int timesTotal = communicationMode == CommunicationMode.SYNC ? 1 + this.defaultMQProducer.getRetryTimesWhenSendFailed() : 1;
             int times = 0;
             String[] brokersSent = new String[timesTotal];
             for (; times < timesTotal; times++) {
                 // 第一次必为null
                 String lastBrokerName = null == mq ? null : mq.getBrokerName();
+                // 拿到一个mq 故障规避机制
                 MessageQueue mqSelected = this.selectOneMessageQueue(topicPublishInfo, lastBrokerName);
                 if (mqSelected != null) {
                     mq = mqSelected;
@@ -721,9 +724,12 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         final TopicPublishInfo topicPublishInfo,
         final long timeout) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
         long beginStartTime = System.currentTimeMillis();
+        // mq 在那个broker上
         String brokerName = this.mQClientFactory.getBrokerNameFromMessageQueue(mq);
+        // 这个broker的地址
         String brokerAddr = this.mQClientFactory.findBrokerAddressInPublish(brokerName);
         if (null == brokerAddr) {
+            // 去nameserver上找
             tryToFindTopicPublishInfo(mq.getTopic());
             brokerName = this.mQClientFactory.getBrokerNameFromMessageQueue(mq);
             brokerAddr = this.mQClientFactory.findBrokerAddressInPublish(brokerName);
@@ -754,6 +760,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 boolean msgBodyCompressed = false;
                 if (this.tryToCompressMessage(msg)) {
                     sysFlag |= MessageSysFlag.COMPRESSED_FLAG;
+                    // 压缩类型
                     sysFlag |= compressType.getCompressionFlag();
                     msgBodyCompressed = true;
                 }
@@ -764,8 +771,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                     sysFlag |= MessageSysFlag.TRANSACTION_PREPARED_TYPE;
                 }
 
-                // q: checkForbiddenHook是什么?
-                // a: 检查是否禁止发送消息的钩子
+                // 检查是否禁止发送消息的钩子
+                // forbidden 之后不就不能发送消息了吗 怎么还往下走
+                // 但好像没有这个钩子的实现
                 if (hasCheckForbiddenHook()) {
                     CheckForbiddenContext checkForbiddenContext = new CheckForbiddenContext();
                     checkForbiddenContext.setNameSrvAddr(this.defaultMQProducer.getNamesrvAddr());
@@ -778,8 +786,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                     this.executeCheckForbiddenHook(checkForbiddenContext);
                 }
 
-                // q: messageHook是什么?
-                // a: 发送消息的钩子
+                // 发送消息的钩子
                 if (this.hasSendMessageHook()) {
                     context = new SendMessageContext();
                     context.setProducer(this);
@@ -791,6 +798,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                     context.setMq(mq);
                     context.setNamespace(this.defaultMQProducer.getNamespace());
                     String isTrans = msg.getProperty(MessageConst.PROPERTY_TRANSACTION_PREPARED);
+                    // 写进上下文, 但hook中没有实际使用
                     if (isTrans != null && isTrans.equals("true")) {
                         context.setMsgType(MessageType.Trans_Msg_Half);
                     }
@@ -810,6 +818,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 requestHeader.setSysFlag(sysFlag);
                 requestHeader.setBornTimestamp(System.currentTimeMillis());
                 requestHeader.setFlag(msg.getFlag());
+                // 自己写的一个压缩方法
                 requestHeader.setProperties(MessageDecoder.messageProperties2String(msg.getProperties()));
                 requestHeader.setReconsumeTimes(0);
                 requestHeader.setUnitMode(this.isUnitMode());
@@ -820,12 +829,14 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                     String reconsumeTimes = MessageAccessor.getReconsumeTime(msg);
                     if (reconsumeTimes != null) {
                         requestHeader.setReconsumeTimes(Integer.valueOf(reconsumeTimes));
+                        // 为什么要清掉?
                         MessageAccessor.clearProperty(msg, MessageConst.PROPERTY_RECONSUME_TIME);
                     }
 
                     String maxReconsumeTimes = MessageAccessor.getMaxReconsumeTimes(msg);
                     if (maxReconsumeTimes != null) {
                         requestHeader.setMaxReconsumeTimes(Integer.valueOf(maxReconsumeTimes));
+                        // 为什么要清掉?
                         MessageAccessor.clearProperty(msg, MessageConst.PROPERTY_MAX_RECONSUME_TIMES);
                     }
                 }
@@ -840,14 +851,15 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                             //If msg body was compressed, msgbody should be reset using prevBody.
                             //Clone new message using commpressed message body and recover origin massage.
                             //Fix bug:https://github.com/apache/rocketmq-externals/issues/66
+                            // 上方bug: tryToCompressMessage函数没有判断msg是否被压缩过，只判断了是否过大，如果压缩后发送失败进行重发并且body大小仍然>=getCompressMsgBodyOverHowmuch()， body会被压缩两次
                             tmpMessage = MessageAccessor.cloneMessage(msg);
                             messageCloned = true;
-                            // q: 为什么是给msg设置body,而不是tmpMessage?
-                            // a:
+                            // 如果压缩过 将 消息内容还原
                             msg.setBody(prevBody);
                         }
 
                         if (topicWithNamespace) {
+                            // 配置了命名空间 深拷贝一份消息, 将原msg topic去掉命名空间
                             if (!messageCloned) {
                                 tmpMessage = MessageAccessor.cloneMessage(msg);
                                 messageCloned = true;

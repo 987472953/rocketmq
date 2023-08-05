@@ -28,6 +28,8 @@ import java.util.Random;
 /**
  * The class describes that a typical broker cluster's (in replication) details: the cluster (in sharding) name
  * that it belongs to, and all the single instance information for this cluster.
+ * 该类描述了一个典型的broker集群 (在副本中) 的详细信息:
+ * 它所属的集群 (在分片中) 名称，以及该集群的所有单个实例信息。
  */
 public class BrokerData implements Comparable<BrokerData> {
     private String cluster;

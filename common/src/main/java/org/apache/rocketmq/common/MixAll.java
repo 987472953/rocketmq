@@ -145,6 +145,7 @@ public class MixAll {
 
     public static String brokerVIPChannel(final boolean isChange, final String brokerAddr) {
         if (isChange) {
+            // 端口-2 就是VIP通道
             int split = brokerAddr.lastIndexOf(":");
             String ip = brokerAddr.substring(0, split);
             String port = brokerAddr.substring(split + 1);

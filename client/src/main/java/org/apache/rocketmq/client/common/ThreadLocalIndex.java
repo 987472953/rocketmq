@@ -25,6 +25,7 @@ public class ThreadLocalIndex {
     private final static int POSITIVE_MASK = 0x7FFFFFFF;
 
     public int incrementAndGet() {
+        // 这儿不用加锁，因为每个线程都有自己的 threadLocalIndex
         Integer index = this.threadLocalIndex.get();
         if (null == index) {
             index = random.nextInt();
@@ -32,7 +33,7 @@ public class ThreadLocalIndex {
         this.threadLocalIndex.set(++index);
         // q: & 0x7FFFFFFF 为什么要这样做？
         // a: 因为 index 可能为负数，如果不做处理，会导致 Math.abs(index) 为负数，从而导致消息发送失败
-        // 冷知识 Math.abs(Integer.MIN_VALUE) < 0
+        // Math.abs(Integer.MIN_VALUE) < 0
         return Math.abs(index & POSITIVE_MASK);
     }
 

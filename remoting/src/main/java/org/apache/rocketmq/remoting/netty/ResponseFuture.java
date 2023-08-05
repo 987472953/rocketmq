@@ -58,6 +58,7 @@ public class ResponseFuture {
 
     public void executeInvokeCallback() {
         if (invokeCallback != null) {
+            // 只执行一次 回调
             if (this.executeCallbackOnlyOnce.compareAndSet(false, true)) {
                 invokeCallback.operationComplete(this);
             }
@@ -85,6 +86,10 @@ public class ResponseFuture {
         return this.responseCommand;
     }
 
+    /**
+     * 保存响应结果 broker 返回响应 后会填充
+     * @param responseCommand
+     */
     public void putResponse(final RemotingCommand responseCommand) {
         this.responseCommand = responseCommand;
         this.countDownLatch.countDown();

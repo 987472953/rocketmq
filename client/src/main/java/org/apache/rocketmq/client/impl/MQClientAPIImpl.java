@@ -422,8 +422,9 @@ public class MQClientAPIImpl implements NameServerUpdateCallback {
         RemotingCommand request = null;
         String msgType = msg.getProperty(MessageConst.PROPERTY_MESSAGE_TYPE);
         boolean isReply = msgType != null && msgType.equals(MixAll.REPLY_MESSAGE_FLAG);
-        // 是回复
+        // code 不同
         if (isReply) {
+            // 是回复 消息(broker 或者 consumer 发回来的消息)
             if (sendSmartMsg) {
                 SendMessageRequestHeaderV2 requestHeaderV2 = SendMessageRequestHeaderV2.createSendMessageRequestHeaderV2(requestHeader);
                 request = RemotingCommand.createRequestCommand(RequestCode.SEND_REPLY_MESSAGE_V2, requestHeaderV2);
@@ -503,8 +504,8 @@ public class MQClientAPIImpl implements NameServerUpdateCallback {
     ) {
         final long beginStartTime = System.currentTimeMillis();
         try {
-            // 这个回调由netty监听
             this.remotingClient.invokeAsync(addr, request, timeoutMillis, new InvokeCallback() {
+                // 这个回调最终 由netty返回response 的时候调用
                 @Override
                 public void operationComplete(ResponseFuture responseFuture) {
                     long cost = System.currentTimeMillis() - beginStartTime;
@@ -513,7 +514,7 @@ public class MQClientAPIImpl implements NameServerUpdateCallback {
                     if (null == sendCallback && response != null) {
 
                         try {
-                            // 根据回调的结果，组装发送结果
+                            // 根据回调的结果，组装结果
                             SendResult sendResult = MQClientAPIImpl.this.processSendResponse(brokerName, msg, response, addr);
                             if (context != null && sendResult != null) {
                                 context.setSendResult(sendResult);
@@ -522,6 +523,7 @@ public class MQClientAPIImpl implements NameServerUpdateCallback {
                         } catch (Throwable e) {
                         }
 
+                        // 更新broker的状态
                         producer.updateFaultItem(brokerName, System.currentTimeMillis() - responseFuture.getBeginTimestamp(), false);
                         return;
                     }

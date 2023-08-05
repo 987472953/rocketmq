@@ -22,7 +22,13 @@ package org.apache.rocketmq.remoting.protocol.route;
 
 public class QueueData implements Comparable<QueueData> {
     private String brokerName;
+    /**
+     * 表示一个消息队列中的读队列数量，即该队列有多少个读队列用于消息的消费。
+     */
     private int readQueueNums;
+    /**
+     * 表示一个消息队列中的写队列数量，即该队列有多少个写队列用于消息的生产。
+     */
     private int writeQueueNums;
     private int perm;
     private int topicSysFlag;

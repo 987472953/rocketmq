@@ -57,9 +57,10 @@ public class MQFaultStrategy {
     }
 
     public MessageQueue selectOneMessageQueue(final TopicPublishInfo tpInfo, final String lastBrokerName) {
+        // 默认情况下没开
         if (this.sendLatencyFaultEnable) {
             try {
-                // 正常情况下每次自加1
+                // 内部使用的 ThreadLocal 每个线程都是独立的
                 int index = tpInfo.getSendWhichQueue().incrementAndGet();
                 // 遍历所有的队列
                 for (int i = 0; i < tpInfo.getMessageQueueList().size(); i++) {
@@ -76,7 +77,7 @@ public class MQFaultStrategy {
                 }
 
                 // 注意: 第一次发送消息的时候，lastBrokerName是null，所以如果有可用Broker不会走到这里
-                // 所有的broker都不可用，那么就从latencyFaultTolerance中获取一个broker
+                // 所有的broker都不可用，那么就从latencyFaultTolerance中获取一个broker(从快要结束管制的前一半随机拿一个)
                 final String notBestBroker = latencyFaultTolerance.pickOneAtLeast();
                 // 这个 brokerName 写队列数
                 int writeQueueNums = tpInfo.getWriteQueueIdByBroker(notBestBroker);
@@ -97,6 +98,9 @@ public class MQFaultStrategy {
             return tpInfo.selectOneMessageQueue();
         }
 
+        // 这儿如果不开启 也会规避不正常的broker
+        //  每次index都加1 => 不会拿到旧的broker
+        //  拿到的broker不能是上一次的broker
         return tpInfo.selectOneMessageQueue(lastBrokerName);
     }
 
@@ -107,6 +111,9 @@ public class MQFaultStrategy {
         }
     }
 
+    /**
+     * 从后往前, 找到对应需要置为不可用的时间
+     */
     private long computeNotAvailableDuration(final long currentLatency) {
         for (int i = latencyMax.length - 1; i >= 0; i--) {
             if (currentLatency >= latencyMax[i])

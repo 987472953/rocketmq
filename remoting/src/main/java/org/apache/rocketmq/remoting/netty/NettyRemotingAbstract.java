@@ -382,6 +382,7 @@ public abstract class NettyRemotingAbstract {
             runInThisThread = true;
         }
 
+        // 线程池有问题 在当前线程执行
         if (runInThisThread) {
             try {
                 responseFuture.executeInvokeCallback();
@@ -459,6 +460,7 @@ public abstract class NettyRemotingAbstract {
 
         try {
             final ResponseFuture responseFuture = new ResponseFuture(channel, opaque, timeoutMillis, null, null);
+            // 放入 正在请求缓存 列表
             this.responseTable.put(opaque, responseFuture);
             final SocketAddress addr = channel.remoteAddress();
             channel.writeAndFlush(request).addListener((ChannelFutureListener) f -> {
@@ -475,7 +477,9 @@ public abstract class NettyRemotingAbstract {
             });
 
             RemotingCommand responseCommand = responseFuture.waitResponse(timeoutMillis);
+            // 等待结果为空，说明超时了
             if (null == responseCommand) {
+                // 默认为true
                 if (responseFuture.isSendRequestOK()) {
                     throw new RemotingTimeoutException(RemotingHelper.parseSocketAddressAddr(addr), timeoutMillis,
                         responseFuture.getCause());
@@ -495,6 +499,7 @@ public abstract class NettyRemotingAbstract {
         throws InterruptedException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {
         long beginStartTime = System.currentTimeMillis();
         final int opaque = request.getOpaque();
+        // 异步信号量 保证并发量
         boolean acquired = this.semaphoreAsync.tryAcquire(timeoutMillis, TimeUnit.MILLISECONDS);
         if (acquired) {
             final SemaphoreReleaseOnlyOnce once = new SemaphoreReleaseOnlyOnce(this.semaphoreAsync);
@@ -505,6 +510,7 @@ public abstract class NettyRemotingAbstract {
             }
 
             final ResponseFuture responseFuture = new ResponseFuture(channel, opaque, timeoutMillis - costTime, invokeCallback, once);
+            // 当前正在执行请求的缓存 在其他地方remove
             this.responseTable.put(opaque, responseFuture);
             try {
                 channel.writeAndFlush(request).addListener((ChannelFutureListener) f -> {
@@ -542,6 +548,9 @@ public abstract class NettyRemotingAbstract {
             responseFuture.setSendRequestOK(false);
             responseFuture.putResponse(null);
             try {
+                // 执行消息回调
+                // 收到消息时会执行一次, 这儿其实应该不会执行
+                //
                 executeInvokeCallback(responseFuture);
             } catch (Throwable e) {
                 log.warn("execute callback in requestFail, and callback throw", e);

@@ -50,6 +50,7 @@ public class SendMessageOpenTracingHookImpl implements SendMessageHook {
         Tracer.SpanBuilder spanBuilder = tracer
                 .buildSpan(TraceConstants.TO_PREFIX + msg.getTopic())
                 .withTag(Tags.SPAN_KIND, Tags.SPAN_KIND_PRODUCER);
+        // 将消息的属性转换为 TextMap 类型
         SpanContext spanContext = tracer.extract(Format.Builtin.TEXT_MAP, new TextMapAdapter(msg.getProperties()));
         if (spanContext != null) {
             spanBuilder.asChildOf(spanContext);
