@@ -142,6 +142,7 @@ public class MQClientInstance {
 
         this.rebalanceService = new RebalanceService(this);
 
+        // 消费者也有
         this.defaultMQProducer = new DefaultMQProducer(MixAll.CLIENT_INNER_PRODUCER_GROUP);
         this.defaultMQProducer.resetClientConfig(clientConfig);
 
@@ -248,9 +249,9 @@ public class MQClientInstance {
                     this.mQClientAPIImpl.start();
                     // 一堆定时任务
                     this.startScheduledTask();
-                    // 启动推或拉消息服务(生成者是pop 消费者是pull?)
+                    // 启动拉消息服务 循环从队列里面处理拉取任务(生产者没有take方法?)
                     this.pullMessageService.start();
-                    // 应该和消费者相关 生产者没用
+                    // 定时rebalance
                     this.rebalanceService.start();
                     // 这是MQClientInstance里面的Impl CLIENT_INNER_PRODUCER
                     this.defaultMQProducer.getDefaultMQProducerImpl().start(false);

@@ -898,22 +898,23 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
                 this.copySubscription();
 
-                // 订阅
+                // 集群模式 修改实例名
                 if (this.defaultMQPushConsumer.getMessageModel() == MessageModel.CLUSTERING) {
                     this.defaultMQPushConsumer.changeInstanceNameToPID();
                 }
 
-                // MQClientInstance
+                // MQClientInstance 核心类
                 this.mQClientFactory = MQClientManager.getInstance().getOrCreateMQClientInstance(this.defaultMQPushConsumer, this.rpcHook);
 
                 this.rebalanceImpl.setConsumerGroup(this.defaultMQPushConsumer.getConsumerGroup());
                 // 消费者负载均衡策略
                 this.rebalanceImpl.setMessageModel(this.defaultMQPushConsumer.getMessageModel());
-                // 消费者分配消息队列策略
+                // 消息分配的策略
                 this.rebalanceImpl.setAllocateMessageQueueStrategy(this.defaultMQPushConsumer.getAllocateMessageQueueStrategy());
-                // 消费者订阅信息
+                // 当前实例的 MQClientInstance
                 this.rebalanceImpl.setmQClientFactory(this.mQClientFactory);
 
+                // 拉取消息的api 包装
                 if (this.pullAPIWrapper == null) {
                     this.pullAPIWrapper = new PullAPIWrapper(
                         mQClientFactory,
@@ -939,9 +940,10 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                     }
                     this.defaultMQPushConsumer.setOffsetStore(this.offsetStore);
                 }
+                // 如果是本地存储消费进度，加载消费进度
                 this.offsetStore.load();
 
-                // 不同的消费的消息监听器
+                // 不同的消费的消息监听器 并发 / 顺序
                 if (this.getMessageListenerInner() instanceof MessageListenerOrderly) {
                     this.consumeOrderly = true;
                     this.consumeMessageService =
@@ -957,11 +959,16 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                         new ConsumeMessagePopConcurrentlyService(this, (MessageListenerConcurrently) this.getMessageListenerInner());
                 }
 
-                // 一些定时任务
+                // 并发消息: 开启清理过期消息的线程定时器
+                // 顺序消息: 集群模式 开启定时锁定消息
                 this.consumeMessageService.start();
                 // POPTODO
+                // 并发消息: nothing
+                // 顺序消息: 集群模式 开启定时锁定消息
+                // 启动2次?
                 this.consumeMessagePopService.start();
 
+                // 注册消费者
                 boolean registerOK = mQClientFactory.registerConsumer(this.defaultMQPushConsumer.getConsumerGroup(), this);
                 if (!registerOK) {
                     this.serviceState = ServiceState.CREATE_JUST;
@@ -1181,10 +1188,8 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
     private void copySubscription() throws MQClientException {
         try {
-            // q: 没有给subscription赋值的地方
-            // a: 在start方法中，会调用subscribe方法，给subscription赋值
-            // q: 不会
-            // a: 会，但是不会覆盖
+            // 没有给subscription赋值的地方
+            // 这儿永远为空?
             Map<String, String> sub = this.defaultMQPushConsumer.getSubscription();
             if (sub != null) {
                 for (final Map.Entry<String, String> entry : sub.entrySet()) {
@@ -1195,6 +1200,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 }
             }
 
+            // 填充为"父类"的MessageListener
             if (null == this.messageListenerInner) {
                 this.messageListenerInner = this.defaultMQPushConsumer.getMessageListener();
             }
