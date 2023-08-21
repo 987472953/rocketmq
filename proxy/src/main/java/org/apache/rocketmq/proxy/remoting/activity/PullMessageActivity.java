@@ -40,6 +40,7 @@ public class PullMessageActivity extends AbstractRemotingActivity {
         ProxyContext context) throws Exception {
         PullMessageRequestHeader requestHeader = (PullMessageRequestHeader) request.decodeCommandCustomHeader(PullMessageRequestHeader.class);
         int sysFlag = requestHeader.getSysFlag();
+        // 是否有消息过滤机制
         if (!PullSysFlag.hasSubscriptionFlag(sysFlag)) {
             ConsumerGroupInfo consumerInfo = messagingProcessor.getConsumerGroupInfo(requestHeader.getConsumerGroup());
             if (consumerInfo == null) {

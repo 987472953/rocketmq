@@ -475,7 +475,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
     void popMessage(final PopRequest popRequest) {
         final PopProcessQueue processQueue = popRequest.getPopProcessQueue();
-        // 如果消息队列已经被丢弃，则直接返回
+        // 消息队列被重新负载
         if (processQueue.isDropped()) {
             log.info("the pop request[{}] is dropped.", popRequest.toString());
             return;
