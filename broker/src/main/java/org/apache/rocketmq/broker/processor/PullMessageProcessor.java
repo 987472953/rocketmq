@@ -306,6 +306,7 @@ public class PullMessageProcessor implements NettyRequestProcessor {
 
         LOGGER.debug("receive PullMessage request command, {}", request);
 
+        // broker 不能读？
         if (!PermName.isReadable(this.brokerController.getBrokerConfig().getBrokerPermission())) {
             response.setCode(ResponseCode.NO_PERMISSION);
             responseHeader.setForbiddenType(ForbiddenType.BROKER_FORBIDDEN);
@@ -314,6 +315,7 @@ public class PullMessageProcessor implements NettyRequestProcessor {
             return response;
         }
 
+        // 轻量拉取 但不支持 : 好像都是轻量拉取
         if (request.getCode() == RequestCode.LITE_PULL_MESSAGE && !this.brokerController.getBrokerConfig().isLitePullMessageEnable()) {
             response.setCode(ResponseCode.NO_PERMISSION);
             responseHeader.setForbiddenType(ForbiddenType.BROKER_FORBIDDEN);
@@ -386,6 +388,7 @@ public class PullMessageProcessor implements NettyRequestProcessor {
         SubscriptionData subscriptionData = null;
         ConsumerFilterData consumerFilterData = null;
         final boolean hasSubscriptionFlag = PullSysFlag.hasSubscriptionFlag(requestHeader.getSysFlag());
+        // 消息过滤
         if (hasSubscriptionFlag) {
             try {
                 subscriptionData = FilterAPI.build(

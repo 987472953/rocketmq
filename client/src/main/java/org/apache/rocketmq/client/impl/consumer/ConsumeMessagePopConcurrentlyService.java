@@ -178,15 +178,18 @@ public class ConsumeMessagePopConcurrentlyService implements ConsumeMessageServi
         final List<MessageExt> msgs,
         final PopProcessQueue processQueue,
         final MessageQueue messageQueue) {
+        // 最大消费消息数量
         final int consumeBatchSize = this.defaultMQPushConsumer.getConsumeMessageBatchMaxSize();
         if (msgs.size() <= consumeBatchSize) {
             ConsumeRequest consumeRequest = new ConsumeRequest(msgs, processQueue, messageQueue);
             try {
                 this.consumeExecutor.submit(consumeRequest);
             } catch (RejectedExecutionException e) {
+                // 被拒绝 等过一会儿
                 this.submitConsumeRequestLater(consumeRequest);
             }
         } else {
+            // 拆分并提交
             for (int total = 0; total < msgs.size(); ) {
                 List<MessageExt> msgThis = new ArrayList<>(consumeBatchSize);
                 for (int i = 0; i < consumeBatchSize; i++, total++) {
@@ -383,6 +386,7 @@ public class ConsumeMessagePopConcurrentlyService implements ConsumeMessageServi
 
         @Override
         public void run() {
+            // 当前mq被分配到其他消费者后，不再消费
             if (this.processQueue.isDropped()) {
                 log.info("the message queue not be able to consume, because it's dropped(pop). group={} {}", ConsumeMessagePopConcurrentlyService.this.consumerGroup, this.messageQueue);
                 return;
@@ -421,6 +425,7 @@ public class ConsumeMessagePopConcurrentlyService implements ConsumeMessageServi
                         MessageAccessor.setConsumeStartTimeStamp(msg, String.valueOf(System.currentTimeMillis()));
                     }
                 }
+                // 进行消费
                 status = listener.consumeMessage(Collections.unmodifiableList(msgs), context);
             } catch (Throwable e) {
                 log.warn("consumeMessage exception: {} Group: {} Msgs: {} MQ: {}",
@@ -445,6 +450,7 @@ public class ConsumeMessagePopConcurrentlyService implements ConsumeMessageServi
                 returnType = ConsumeReturnType.SUCCESS;
             }
 
+            // 消费者没返回
             if (null == status) {
                 log.warn("consumeMessage return null, Group: {} Msgs: {} MQ: {}",
                     ConsumeMessagePopConcurrentlyService.this.consumerGroup,
