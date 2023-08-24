@@ -24,6 +24,7 @@ import java.util.Arrays;
 
 public class FilterAPI {
 
+    // 构建tag列表
     public static SubscriptionData buildSubscriptionData(String topic, String subString) throws Exception {
         final SubscriptionData subscriptionData = new SubscriptionData();
         subscriptionData.setTopic(topic);

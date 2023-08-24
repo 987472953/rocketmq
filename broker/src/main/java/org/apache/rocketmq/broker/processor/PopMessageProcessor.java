@@ -345,18 +345,22 @@ public class PopMessageProcessor implements NettyRequestProcessor {
         }
 
         ExpressionMessageFilter messageFilter = null;
+        // 有过滤条件
         if (requestHeader.getExp() != null && requestHeader.getExp().length() > 0) {
             try {
+                // 普通topic的订阅信息添加过滤信息并更新
                 SubscriptionData subscriptionData = FilterAPI.build(requestHeader.getTopic(), requestHeader.getExp(), requestHeader.getExpType());
                 brokerController.getConsumerManager().compensateSubscribeData(requestHeader.getConsumerGroup(),
                     requestHeader.getTopic(), subscriptionData);
 
+                // 重试topic的订阅信息添加过滤信息并更新
                 String retryTopic = KeyBuilder.buildPopRetryTopic(requestHeader.getTopic(), requestHeader.getConsumerGroup());
                 SubscriptionData retrySubscriptionData = FilterAPI.build(retryTopic, SubscriptionData.SUB_ALL, requestHeader.getExpType());
                 brokerController.getConsumerManager().compensateSubscribeData(requestHeader.getConsumerGroup(),
                     retryTopic, retrySubscriptionData);
 
                 ConsumerFilterData consumerFilterData = null;
+                // 不是tag 是sql92
                 if (!ExpressionType.isTagType(subscriptionData.getExpressionType())) {
                     consumerFilterData = ConsumerFilterManager.build(
                         requestHeader.getTopic(), requestHeader.getConsumerGroup(), requestHeader.getExp(),
@@ -402,11 +406,15 @@ public class PopMessageProcessor implements NettyRequestProcessor {
             reviveQid = (int) Math.abs(ckMessageNumber.getAndIncrement() % this.brokerController.getBrokerConfig().getReviveQueueNum());
         }
 
+        // 默认4KB
         int commercialSizePerMsg = this.brokerController.getBrokerConfig().getCommercialSizePerMsg();
         GetMessageResult getMessageResult = new GetMessageResult(commercialSizePerMsg);
         ExpressionMessageFilter finalMessageFilter = messageFilter;
         StringBuilder finalOrderCountInfo = orderCountInfo;
 
+//        随机重试一部分消息,可以发现并纠正偶发的处理错误。
+//        但又不会由于重试导致全部消息处理速度大幅下降。
+//        通过调整取模的除数,可以灵活控制重试的比例。
         boolean needRetry = randomQ % 5 == 0;
         long popTime = System.currentTimeMillis();
         CompletableFuture<Long> getMessageFuture = CompletableFuture.completedFuture(0L);
@@ -416,6 +424,7 @@ public class PopMessageProcessor implements NettyRequestProcessor {
             if (retryTopicConfig != null) {
                 for (int i = 0; i < retryTopicConfig.getReadQueueNums(); i++) {
                     int queueId = (randomQ + i) % retryTopicConfig.getReadQueueNums();
+                    // 提交重试pop任务
                     getMessageFuture = getMessageFuture.thenCompose(restNum -> popMsgFromQueue(true, getMessageResult, requestHeader, queueId, restNum, reviveQid, channel, popTime, finalMessageFilter,
                         startOffsetInfo, msgOffsetInfo, finalOrderCountInfo));
                 }
@@ -536,6 +545,7 @@ public class PopMessageProcessor implements NettyRequestProcessor {
             false, lockKey, false);
         CompletableFuture<Long> future = new CompletableFuture<>();
         if (!queueLockManager.tryLock(lockKey)) {
+            // 没有拿到锁，返回MQ的最大offset
             restNum = this.brokerController.getMessageStore().getMaxOffsetInQueue(topic, queueId) - offset + restNum;
             future.complete(restNum);
             return future;
@@ -545,6 +555,7 @@ public class PopMessageProcessor implements NettyRequestProcessor {
             future.whenComplete((result, throwable) -> queueLockManager.unLock(lockKey));
             offset = getPopOffset(topic, requestHeader.getConsumerGroup(), queueId, requestHeader.getInitMode(),
                 true, lockKey, true);
+            // 顺序消费 and 有消息在消费中
             if (isOrder && brokerController.getConsumerOrderInfoManager().checkBlock(topic,
                 requestHeader.getConsumerGroup(), queueId, requestHeader.getInvisibleTime())) {
                 future.complete(this.brokerController.getMessageStore().getMaxOffsetInQueue(topic, queueId) - offset + restNum);

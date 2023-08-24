@@ -772,6 +772,7 @@ public class CommitLog implements Swappable {
 
         InetSocketAddress bornSocketAddress = (InetSocketAddress) msg.getBornHost();
         if (bornSocketAddress.getAddress() instanceof Inet6Address) {
+            // ipv5
             msg.setBornHostV6Flag();
         }
 
@@ -787,6 +788,7 @@ public class CommitLog implements Swappable {
         MappedFile unlockMappedFile = null;
         MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile();
 
+        // 计算offset
         long currOffset;
         if (mappedFile == null) {
             currOffset = 0;
@@ -827,10 +829,12 @@ public class CommitLog implements Swappable {
                 defaultMessageStore.assignOffset(msg, getMessageNum(msg));
             }
 
+            //写入threadLocal的buffer 消息内容过大返回非空
             PutMessageResult encodeResult = putMessageThreadLocal.getEncoder().encode(msg);
             if (encodeResult != null) {
                 return CompletableFuture.completedFuture(encodeResult);
             }
+            // 变为nio的buffer
             msg.setEncodedBuff(putMessageThreadLocal.getEncoder().getEncoderBuffer());
             PutMessageContext putMessageContext = new PutMessageContext(topicQueueKey);
 
@@ -855,6 +859,7 @@ public class CommitLog implements Swappable {
                 }
 
                 result = mappedFile.appendMessage(msg, this.appendMessageCallback, putMessageContext);
+                // 写入commitlog之后
                 switch (result.getStatus()) {
                     case PUT_OK:
                         onCommitLogAppend(msg, result, mappedFile);
